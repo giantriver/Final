@@ -6,10 +6,12 @@ crawler_to_firebase_with_utils.py
 import time, sys, os, re, smtplib
 from email.mime.text import MIMEText
 from email.header import Header
+from dotenv import load_dotenv
 import firebase_admin
 from firebase_admin import credentials, firestore
-import dotenv
-dotenv.load_dotenv()
+
+# === 載入 .env 檔案 ===
+load_dotenv()
 
 # === 導入你專案自訂 util ===
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -22,14 +24,30 @@ DISTRICT_SECTION = {
     "北投區": 9, "內湖區": 10, "南港區": 11, "文山區": 12
 }
 
-# === 初始化 Firebase ===
-cred = credentials.Certificate("firebase_service_account.json")  # 替換為你的憑證
-firebase_admin.initialize_app(cred)
+# === 初始化 Firebase（使用 .env 中的憑證資料） ===
+# Firebase credentials
+cred_dict = {
+    "type": os.getenv("TYPE"),
+    "project_id": os.getenv("PROJECT_ID"),
+    "private_key_id": os.getenv("PRIVATE_KEY_ID"),
+    "private_key": os.getenv("PRIVATE_KEY").replace("\\n", "\n"),  # ⬅ 關鍵處理
+    "client_email": os.getenv("CLIENT_EMAIL"),
+    "client_id": os.getenv("CLIENT_ID"),
+    "auth_uri": os.getenv("AUTH_URI"),
+    "token_uri": os.getenv("TOKEN_URI"),
+    "auth_provider_x509_cert_url": os.getenv("AUTH_PROVIDER_CERT_URL"),
+    "client_x509_cert_url": os.getenv("CLIENT_CERT_URL"),
+    "universe_domain": os.getenv("UNIVERSE_DOMAIN"),
+}
+
+from firebase_admin import credentials, firestore, initialize_app
+cred = credentials.Certificate(cred_dict)
+initialize_app(cred)
 db = firestore.client()
 
 # ---------- 建立查詢 URL ----------
 def build_url(cond: dict) -> str:
-    url = "https://rent.591.com.tw/list?region=1"  # 台北市
+    url = "https://rent.591.com.tw/list?region=1"
     section = DISTRICT_SECTION.get(cond["district"])
     if section:
         url += f"&section={section}"
@@ -39,7 +57,7 @@ def build_url(cond: dict) -> str:
         url += "&other=pet"
     return url
 
-# ---------- 解析爬到的項目 ----------
+# ---------- 解析房源 ----------
 def parse_items(soup):
     results = []
     for item in soup.select(".list-wrapper .item"):
@@ -50,7 +68,6 @@ def parse_items(soup):
         title = title_tag.text.strip()
         link = title_tag["href"]
 
-        # 找更新時間
         updated = ""
         for line in item.select("span.line"):
             text = line.get_text(strip=True)
@@ -58,7 +75,6 @@ def parse_items(soup):
                 updated = text
                 break
 
-        # 僅保留 3 小時內更新
         if "分鐘內更新" in updated:
             is_recent = True
         else:
@@ -66,11 +82,7 @@ def parse_items(soup):
             is_recent = match and int(match.group(1)) <= 3
 
         if is_recent:
-            results.append({
-                "title": title,
-                "link": link,
-                "updated": updated
-            })
+            results.append({"title": title, "link": link, "updated": updated})
     return results
 
 # ---------- 寫入通知 ----------
@@ -85,30 +97,32 @@ def write_notifications(user_id, condition_id, listings):
             "createdAt": firestore.SERVER_TIMESTAMP
         })
 
-# ---------- 根據 UID 查詢 email ----------
+# ---------- 查詢 email ----------
 def get_user_email(user_id):
     try:
-        doc_ref = db.collection("users").document(user_id)
-        user_doc = doc_ref.get()
-        if user_doc.exists:
-            return user_doc.to_dict().get("email")
+        doc = db.collection("users").document(user_id).get()
+        if doc.exists:
+            return doc.to_dict().get("email")
     except Exception as e:
         print(f"⚠️ 無法查詢 email：{e}")
     return None
 
 # ---------- 發送 email ----------
 def send_email(to_email, count):
+    from_email = os.getenv("GMAIL_ADDRESS")
+    app_password = os.getenv("GMAIL_APP_PASSWORD")
+
     subject = "開 Home 爬：有新的房屋通知囉！"
     body = f"您好，系統剛為您找到了 {count} 間符合條件的房屋資訊，請至您的通知頁面查看。"
 
     msg = MIMEText(body, "plain", "utf-8")
     msg["Subject"] = Header(subject, "utf-8")
-    msg["From"] = "開 Home 爬 通知 <your@gmail.com>"
+    msg["From"] = f"開 Home 爬 通知 <{from_email}>"
     msg["To"] = to_email
 
     try:
         with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
-            server.login(os.getenv("GMAIL_ADDRESS"), os.getenv("GMAIL_APP_PASSWORD"))  # ⚠️ 替換！
+            server.login(from_email, app_password)
             server.send_message(msg)
         print(f"📧 已寄信通知 {to_email}")
     except Exception as e:
