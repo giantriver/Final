@@ -1,0 +1,12 @@
+# ❗ 不要追蹤這些憑證與私密資訊
+.env
+firebase_service_account.json
+
+# ❗ Python 暫存檔案與資料夾
+__pycache__/
+*.pyc
+
+# ❗ 編輯器或作業系統產生的檔案
+.vscode/
+.DS_Store
+Thumbs.db
