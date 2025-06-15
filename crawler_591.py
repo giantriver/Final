@@ -8,6 +8,8 @@ from email.mime.text import MIMEText
 from email.header import Header
 import firebase_admin
 from firebase_admin import credentials, firestore
+import dotenv
+dotenv.load_dotenv()
 
 # === 導入你專案自訂 util ===
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -106,7 +108,7 @@ def send_email(to_email, count):
 
     try:
         with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
-            server.login("jerrylee1107xj@gmail.com", "oeueopwswggpakgl")  # ⚠️ 替換！
+            server.login(os.getenv("GMAIL_ADDRESS"), os.getenv("GMAIL_APP_PASSWORD"))  # ⚠️ 替換！
             server.send_message(msg)
         print(f"📧 已寄信通知 {to_email}")
     except Exception as e:
