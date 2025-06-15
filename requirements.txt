@@ -101,3 +101,4 @@ webdriver-manager==4.0.2
 websocket-client==1.8.0
 wsproto==1.2.0
 zipp @ file:///home/conda/feedstock_root/build_artifacts/zipp_1732827521216/work
+bs4==0.0.1
