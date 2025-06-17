@@ -83,7 +83,7 @@ def schedule(req: ScheduleRequest):
         "Content-Type": "application/json"
     }
 
-    cron_expr = f"*/{req.interval_minutes} * * * *"
+    cron_expr = f"*/{req.interval_minutes} * * * *"  # 每 X 分鐘一次
 
     body = {
         "projectId": RAILWAY_PROJECT_ID,
@@ -93,9 +93,23 @@ def schedule(req: ScheduleRequest):
         "command": "python crawler_591.py"
     }
 
+    print("📦 準備送出的 CRON body:", body)
+
+    # 先檢查是否已存在重名 cron job，避免衝突
+    list_url = f"https://backboard.railway.app/v2/projects/{RAILWAY_PROJECT_ID}/crons"
+    existing = requests.get(list_url, headers=headers)
+    if existing.status_code == 200:
+        for cron in existing.json():
+            if cron["name"] == "run-crawler-job":
+                print("⚠️ 已存在同名 CRON，先刪除...")
+                delete_url = f"https://backboard.railway.app/v2/crons/{cron['id']}"
+                del_resp = requests.delete(delete_url, headers=headers)
+                print("🧹 刪除狀態:", del_resp.status_code)
+
+    # 發送建立請求
     response = requests.post("https://backboard.railway.app/v2/crons", json=body, headers=headers)
 
-    # 🔽 加在這裡！列印錯誤訊息方便 debug
+    # 印出 Railway API 回應（方便 debug）
     print("🔧 Railway 回傳狀態碼:", response.status_code)
     print("📨 Railway 回傳內容:", response.text)
 
@@ -103,6 +117,9 @@ def schedule(req: ScheduleRequest):
         return {"status": f"✅ 成功建立 CRON 任務，每 {req.interval_minutes} 分鐘執行一次"}
     else:
         raise HTTPException(status_code=500, detail=f"建立失敗: {response.text}")
+
+
+
 
 
 @app.post("/cancel-schedule")
