@@ -1,5 +1,6 @@
+playwright
+fastapi
+uvicorn
 firebase-admin
 python-dotenv
 beautifulsoup4
-requests
-playwright
