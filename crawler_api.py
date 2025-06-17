@@ -1,6 +1,6 @@
 # crawler_api.py
 from fastapi import FastAPI
-from crawler_to_firebase_with_utils import main as run_crawler
+from crawler_591 import main as run_crawler
 import uvicorn
 
 app = FastAPI()
