@@ -24,6 +24,9 @@ app.add_middleware(
 RAILWAY_API_TOKEN = os.getenv("RAILWAY_API_TOKEN")
 RAILWAY_PROJECT_ID = os.getenv("RAILWAY_PROJECT_ID")
 RAILWAY_SERVICE_ID = os.getenv("RAILWAY_SERVICE_ID")
+print("🚀 RAILWAY_API_TOKEN:", bool(RAILWAY_API_TOKEN))
+print("🚀 RAILWAY_PROJECT_ID:", RAILWAY_PROJECT_ID)
+print("🚀 RAILWAY_SERVICE_ID:", RAILWAY_SERVICE_ID)
 
 # 載入你的爬蟲主函式
 from crawler_591 import main as run_crawler
@@ -80,7 +83,8 @@ def schedule(req: ScheduleRequest):
         "Content-Type": "application/json"
     }
 
-    cron_expr = f"*/{req.interval_minutes} * * * *"  # 每 X 分鐘
+    cron_expr = f"*/{req.interval_minutes} * * * *"
+
     body = {
         "projectId": RAILWAY_PROJECT_ID,
         "serviceId": RAILWAY_SERVICE_ID,
@@ -90,6 +94,11 @@ def schedule(req: ScheduleRequest):
     }
 
     response = requests.post("https://backboard.railway.app/v2/crons", json=body, headers=headers)
+
+    # 🔽 加在這裡！列印錯誤訊息方便 debug
+    print("🔧 Railway 回傳狀態碼:", response.status_code)
+    print("📨 Railway 回傳內容:", response.text)
+
     if response.status_code == 200:
         return {"status": f"✅ 成功建立 CRON 任務，每 {req.interval_minutes} 分鐘執行一次"}
     else:
