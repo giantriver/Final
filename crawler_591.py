@@ -1,4 +1,3 @@
-# crawler_to_firebase_with_utils.py
 # ✅ 把主流程封裝成 main()，供其他地方 import 使用
 
 import os, re, smtplib
