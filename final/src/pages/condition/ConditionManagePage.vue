@@ -92,8 +92,7 @@
           <div>
             {{ cond.city }} {{ cond.district }} | {{ cond.minPrice }} ~
             {{ cond.maxPrice }} 元 | {{ cond.minSize }} ~ {{ cond.maxSize }} 坪
-            |
-            {{ cond.allowPets ? "可養寵物" : "不可養寵物" }}
+            | {{ cond.allowPets ? "可養寵物" : "不可養寵物" }}
           </div>
           <button
             @click="deleteCondition(cond.id)"
@@ -103,12 +102,26 @@
           </button>
         </li>
       </ul>
+
+      <!-- 立即啟動爬蟲按鈕 -->
+      <div class="mt-6">
+        <button
+          @click="triggerCrawler"
+          class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition"
+        >
+          立即啟動爬蟲
+        </button>
+        <p v-if="crawlerStatus" class="text-green-600 mt-2 font-semibold">
+          {{ crawlerStatus }}
+        </p>
+      </div>
     </div>
   </div>
 </template>
 
 <script setup>
 import { ref, onMounted } from "vue";
+import axios from "axios";
 import { db, auth } from "@/firebase";
 import {
   collection,
@@ -130,8 +143,9 @@ const maxSize = ref(0);
 const allowPets = ref(false);
 const conditions = ref([]);
 const errorMsg = ref("");
+const crawlerStatus = ref("");
 
-// 讀取條件 (動態取得 user)
+// 讀取條件
 const loadConditions = async () => {
   const user = auth.currentUser;
   if (!user) return;
@@ -179,6 +193,22 @@ const addCondition = async () => {
   }
 };
 
+// 呼叫爬蟲 Web API
+const triggerCrawler = async () => {
+  try {
+    await axios.post("https://worker-production-b824.up.railway.app/run");
+
+    crawlerStatus.value = "✅ 已依照條件進行定時爬蟲";
+  } catch (err) {
+    console.error("❌ 呼叫爬蟲失敗", err);
+    crawlerStatus.value = "❌ 啟動爬蟲失敗，請稍後再試";
+  }
+
+  setTimeout(() => {
+    crawlerStatus.value = "";
+  }, 5000);
+};
+
 // 清空表單
 const clearForm = () => {
   city.value = "";
@@ -195,12 +225,10 @@ const clearForm = () => {
 const deleteCondition = async (id) => {
   const user = auth.currentUser;
   if (!user) return;
-
   await deleteDoc(doc(db, "conditions", id));
   await loadConditions();
 };
 
-// 頁面初始化
 onMounted(() => {
   loadConditions();
 });

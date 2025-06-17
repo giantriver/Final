@@ -1,9 +1,18 @@
-# crawler_api.py
 from fastapi import FastAPI
-from crawler_591 import main as run_crawler
+from fastapi.middleware.cors import CORSMiddleware
+from crawler_to_firebase_with_utils import main as run_crawler
 import uvicorn
 
 app = FastAPI()
+
+# ✅ 加入 CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # 或指定 http://localhost:5173
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 @app.post("/run")
 def trigger_crawler():
