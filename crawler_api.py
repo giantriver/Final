@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from crawler_to_firebase_with_utils import main as run_crawler
+from crawler_591 import main as run_crawler
 import uvicorn
 
 app = FastAPI()
