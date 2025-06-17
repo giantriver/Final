@@ -79,7 +79,7 @@
       <div v-if="errorMsg" class="text-red-500 mt-3">{{ errorMsg }}</div>
     </div>
 
-    <!-- 條件清單 -->
+    <!-- 條件清單與啟動爬蟲 -->
     <div class="bg-white p-4 rounded shadow">
       <h2 class="text-xl font-semibold mb-4">目前條件</h2>
       <div v-if="conditions.length === 0">尚未新增條件</div>
@@ -92,7 +92,8 @@
           <div>
             {{ cond.city }} {{ cond.district }} | {{ cond.minPrice }} ~
             {{ cond.maxPrice }} 元 | {{ cond.minSize }} ~ {{ cond.maxSize }} 坪
-            | {{ cond.allowPets ? "可養寵物" : "不可養寵物" }}
+            |
+            {{ cond.allowPets ? "可養寵物" : "不可養寵物" }}
           </div>
           <button
             @click="deleteCondition(cond.id)"
@@ -103,16 +104,42 @@
         </li>
       </ul>
 
-      <!-- 立即啟動爬蟲按鈕 -->
+      <!-- 即時爬蟲觸發 -->
       <div class="mt-6">
         <button
           @click="triggerCrawler"
-          class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition"
+          class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
         >
           立即啟動爬蟲
         </button>
-        <p v-if="crawlerStatus" class="text-green-600 mt-2 font-semibold">
-          {{ crawlerStatus }}
+      </div>
+
+      <!-- CRON 排程 -->
+      <div class="mt-8">
+        <label class="block mb-2 font-medium">每幾分鐘執行一次爬蟲：</label>
+        <input
+          v-model.number="interval"
+          type="number"
+          min="1"
+          placeholder="例如 180"
+          class="input w-48 mb-3"
+        />
+        <div class="flex gap-3">
+          <button
+            @click="startSchedule"
+            class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+          >
+            開始排程
+          </button>
+          <button
+            @click="cancelSchedule"
+            class="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700"
+          >
+            取消排程
+          </button>
+        </div>
+        <p v-if="scheduleStatus" class="mt-3 font-medium text-blue-600">
+          {{ scheduleStatus }}
         </p>
       </div>
     </div>
@@ -134,6 +161,7 @@ import {
   serverTimestamp,
 } from "firebase/firestore";
 
+// 表單狀態
 const city = ref("");
 const district = ref("");
 const minPrice = ref(0);
@@ -143,9 +171,13 @@ const maxSize = ref(0);
 const allowPets = ref(false);
 const conditions = ref([]);
 const errorMsg = ref("");
-const crawlerStatus = ref("");
 
-// 讀取條件
+// 爬蟲與排程
+const crawlerStatus = ref("");
+const interval = ref(180); // 預設每180分鐘執行
+const scheduleStatus = ref("");
+
+// 載入使用者條件
 const loadConditions = async () => {
   const user = auth.currentUser;
   if (!user) return;
@@ -167,7 +199,6 @@ const addCondition = async () => {
     errorMsg.value = "尚未登入，請重新登入";
     return;
   }
-
   if (!city.value || !district.value) {
     errorMsg.value = "請完整填寫城市與區域";
     return;
@@ -193,22 +224,6 @@ const addCondition = async () => {
   }
 };
 
-// 呼叫爬蟲 Web API
-const triggerCrawler = async () => {
-  try {
-    await axios.post("https://worker-production-b824.up.railway.app/run");
-
-    crawlerStatus.value = "✅ 已依照條件進行定時爬蟲";
-  } catch (err) {
-    console.error("❌ 呼叫爬蟲失敗", err);
-    crawlerStatus.value = "❌ 啟動爬蟲失敗，請稍後再試";
-  }
-
-  setTimeout(() => {
-    crawlerStatus.value = "";
-  }, 5000);
-};
-
 // 清空表單
 const clearForm = () => {
   city.value = "";
@@ -229,6 +244,44 @@ const deleteCondition = async (id) => {
   await loadConditions();
 };
 
+// 即時觸發爬蟲
+const triggerCrawler = async () => {
+  try {
+    await axios.post("https://worker-production-b824.up.railway.app/run");
+    crawlerStatus.value = "✅ 已觸發爬蟲";
+  } catch (err) {
+    console.error("❌ 呼叫爬蟲失敗", err);
+    crawlerStatus.value = "❌ 呼叫爬蟲失敗";
+  }
+  setTimeout(() => (crawlerStatus.value = ""), 5000);
+};
+
+// 建立 CRON 排程
+const startSchedule = async () => {
+  try {
+    await axios.post("https://worker-production-b824.up.railway.app/schedule", {
+      interval_minutes: interval.value,
+    });
+    scheduleStatus.value = `✅ 每 ${interval.value} 分鐘執行爬蟲`;
+  } catch (err) {
+    console.error("❌ 建立排程失敗", err);
+    scheduleStatus.value = "❌ 建立排程失敗";
+  }
+};
+
+// 取消 CRON 排程
+const cancelSchedule = async () => {
+  try {
+    await axios.post(
+      "https://worker-production-b824.up.railway.app/cancel-schedule"
+    );
+    scheduleStatus.value = "✅ 已取消排程";
+  } catch (err) {
+    console.error("❌ 取消排程失敗", err);
+    scheduleStatus.value = "❌ 取消排程失敗";
+  }
+};
+
 onMounted(() => {
   loadConditions();
 });
@@ -236,6 +289,6 @@ onMounted(() => {
 
 <style scoped>
 .input {
-  @apply w-full border border-gray-300 px-3 py-2 rounded focus:outline-none focus:ring-2 focus:ring-blue-400;
+  @apply border border-gray-300 px-3 py-2 rounded focus:outline-none focus:ring-2 focus:ring-blue-400;
 }
 </style>
