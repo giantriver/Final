@@ -1,9 +1,10 @@
 <template>
   <div
-    class="min-h-screen flex flex-col items-center justify-center bg-gray-100"
+    class="min-h-screen flex flex-col items-center justify-center bg-gray-100 px-4"
   >
-    <div class="text-center mb-16">
-      <h1 class="text-6xl font-extrabold tracking-wide">
+    <!-- 標題區 -->
+    <div class="text-center mb-12 sm:mb-16">
+      <h1 class="text-4xl sm:text-6xl font-extrabold tracking-wide">
         <span class="text-black">開</span>
         <span
           class="text-transparent bg-clip-text bg-gradient-to-r from-blue-500 to-purple-500 animate-pulse"
@@ -11,10 +12,11 @@
         >
         <span class="text-black">爬</span>
       </h1>
-      <p class="text-gray-500 text-lg mt-4">註冊帳號</p>
+      <p class="text-gray-500 text-base sm:text-lg mt-3 sm:mt-4">註冊帳號</p>
     </div>
 
-    <div class="bg-white p-10 rounded-lg shadow-lg max-w-lg w-full">
+    <!-- 註冊表單 -->
+    <div class="bg-white p-6 sm:p-10 rounded-lg shadow-lg w-full max-w-md">
       <div class="mb-6">
         <label class="block mb-2 text-gray-700 font-medium">E-mail</label>
         <input
@@ -47,7 +49,7 @@
 
       <button
         @click="handleRegister"
-        class="w-full bg-green-500 text-white py-3 rounded-lg font-semibold hover:bg-green-600 transition"
+        class="w-full bg-green-500 text-white py-3 rounded-lg font-semibold hover:bg-green-600 transition text-base sm:text-lg"
       >
         註冊
       </button>
@@ -96,7 +98,7 @@ const handleRegister = async () => {
     );
     const user = userCredential.user;
 
-    // ✅ 寫入 Firestore：儲存 email 至 users 集合中
+    // 儲存使用者基本資料到 Firestore
     await setDoc(doc(db, "users", user.uid), {
       email: email.value,
     });
