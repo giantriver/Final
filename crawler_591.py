@@ -11,12 +11,18 @@ from firebase_admin import credentials, firestore
 
 load_dotenv()
 
+# ✅ 台北市、新北市區域對照表（section ID）
 DISTRICT_SECTION = {
+    # 台北市
     "中正區": 1, "大同區": 2, "中山區": 3, "松山區": 4,
     "大安區": 5, "萬華區": 6, "信義區": 7, "士林區": 8,
-    "北投區": 9, "內湖區": 10, "南港區": 11, "文山區": 12
+    "北投區": 9, "內湖區": 10, "南港區": 11, "文山區": 12,
+    # 新北市
+    "板橋區": 26, "新莊區": 44, "中和區": 38, "三重區": 43,
+    "新店區": 34, "土城區": 39, "永和區": 37
 }
 
+# ✅ 初始化 Firebase
 cred_dict = {
     "type": os.getenv("TYPE"),
     "project_id": os.getenv("PROJECT_ID"),
@@ -33,8 +39,14 @@ cred_dict = {
 firebase_admin.initialize_app(credentials.Certificate(cred_dict))
 db = firestore.client()
 
+# ✅ 根據條件組出 591 搜尋 URL
 def build_url(cond: dict) -> str:
-    url = "https://rent.591.com.tw/list?region=1"
+    city_region_map = {
+        "台北市": 1,
+        "新北市": 3
+    }
+    region = city_region_map.get(cond["city"], 1)
+    url = f"https://rent.591.com.tw/list?region={region}"
     section = DISTRICT_SECTION.get(cond["district"])
     if section:
         url += f"&section={section}"
@@ -44,6 +56,7 @@ def build_url(cond: dict) -> str:
         url += "&other=pet"
     return url
 
+# ✅ 用 Playwright 拿下整頁 HTML
 def get_page_content(url: str) -> BeautifulSoup:
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
@@ -60,6 +73,7 @@ def get_page_content(url: str) -> BeautifulSoup:
         browser.close()
     return BeautifulSoup(content, "html.parser")
 
+# ✅ 從 HTML 解析出房源資訊
 def parse_items(soup):
     results = []
     for item in soup.select(".list-wrapper .item"):
@@ -84,6 +98,7 @@ def parse_items(soup):
             results.append({"title": title, "link": link, "updated": updated})
     return results
 
+# ✅ 寫入 Firebase 的通知資料
 def write_notifications(user_id, condition_id, listings):
     for l in listings:
         db.collection("notifications").add({
@@ -95,6 +110,7 @@ def write_notifications(user_id, condition_id, listings):
             "createdAt": firestore.SERVER_TIMESTAMP
         })
 
+# ✅ 根據 userId 查詢 Email
 def get_user_email(user_id):
     try:
         doc = db.collection("users").document(user_id).get()
@@ -104,6 +120,7 @@ def get_user_email(user_id):
         print(f"⚠️ 無法查詢 email：{e}")
     return None
 
+# ✅ 發送 Email 通知
 def send_email(to_email, count):
     from_email = os.getenv("GMAIL_ADDRESS")
     app_password = os.getenv("GMAIL_APP_PASSWORD")
@@ -121,6 +138,20 @@ def send_email(to_email, count):
     except Exception as e:
         print(f"⚠️ 寄信失敗: {e}")
 
+# ✅ 刪除使用者原有的通知
+def delete_user_notifications(user_id):
+    try:
+        notifications_ref = db.collection("notifications")
+        q = notifications_ref.where("userId", "==", user_id)
+        docs = q.stream()
+        count = 0
+        for doc in docs:
+            doc.reference.delete()
+            count += 1
+        print(f"🗑️ 已刪除使用者 {user_id} 的所有通知，共 {count} 筆")
+    except Exception as e:
+        print(f"⚠️ 無法刪除通知紀錄：{e}")
+
 def main():
     cond_docs = db.collection("conditions").stream()
     for doc in cond_docs:
@@ -129,14 +160,18 @@ def main():
         if not user_id:
             print("⚠️ 此條件缺少 userId，略過")
             continue
-        if cond.get("city") != "台北市":
+        if cond.get("city") not in ["台北市", "新北市"]:
             continue
         url = build_url(cond)
         print(f"🔍 查詢條件網址: {url}")
         soup = get_page_content(url)
         listings = parse_items(soup)
         print(f"→ 符合條件房源數量：{len(listings)}")
+
         if listings:
+            # ✅ 先刪除原有通知
+            delete_user_notifications(user_id)
+
             print(f"📥 寫入 {len(listings)} 條通知到 Firebase")
             write_notifications(user_id, doc.id, listings)
             email = get_user_email(user_id)
@@ -146,3 +181,4 @@ def main():
             else:
                 print(f"❌ 找不到使用者 {user_id} 的 email")
     print("🎉 爬蟲完成，已寫入 Firebase 並寄送通知")
+

@@ -10,18 +10,18 @@
       <div class="mb-4">
         <label class="block mb-1 font-medium">地區</label>
         <div class="grid grid-cols-2 gap-4">
-          <input
-            v-model="city"
-            type="text"
-            placeholder="請輸入城市 (例如：台北市)"
-            class="input"
-          />
-          <input
-            v-model="district"
-            type="text"
-            placeholder="請輸入區域 (例如：大安區)"
-            class="input"
-          />
+          <select v-model="city" @change="updateDistricts" class="input">
+            <option value="" disabled>請選擇城市</option>
+            <option value="台北市">台北市</option>
+            <option value="新北市">新北市</option>
+          </select>
+
+          <select v-model="district" class="input">
+            <option value="" disabled>請選擇區域</option>
+            <option v-for="d in availableDistricts" :key="d" :value="d">
+              {{ d }}
+            </option>
+          </select>
         </div>
       </div>
 
@@ -136,6 +136,8 @@ import {
 
 const city = ref("");
 const district = ref("");
+const availableDistricts = ref([]);
+
 const minPrice = ref(0);
 const maxPrice = ref(0);
 const minSize = ref(0);
@@ -144,6 +146,39 @@ const allowPets = ref(false);
 const conditions = ref([]);
 const errorMsg = ref("");
 const crawlerStatus = ref("");
+
+// 城市與對應區域（來自 crawler_591.py 設定）
+const cityDistrictMap = {
+  台北市: [
+    "中正區",
+    "大同區",
+    "中山區",
+    "松山區",
+    "大安區",
+    "萬華區",
+    "信義區",
+    "士林區",
+    "北投區",
+    "內湖區",
+    "南港區",
+    "文山區",
+  ],
+  新北市: [
+    "板橋區",
+    "新莊區",
+    "中和區",
+    "三重區",
+    "新店區",
+    "土城區",
+    "永和區",
+  ],
+};
+
+// 根據城市更新可選區域
+const updateDistricts = () => {
+  district.value = "";
+  availableDistricts.value = cityDistrictMap[city.value] || [];
+};
 
 // 讀取條件
 const loadConditions = async () => {
@@ -169,7 +204,7 @@ const addCondition = async () => {
   }
 
   if (!city.value || !district.value) {
-    errorMsg.value = "請完整填寫城市與區域";
+    errorMsg.value = "請完整選擇城市與區域";
     return;
   }
 
@@ -197,7 +232,7 @@ const addCondition = async () => {
 const triggerCrawler = async () => {
   try {
     await axios.post("https://worker-production-b824.up.railway.app/run");
-    crawlerStatus.value = "✅ 已依照條件進行定時爬蟲";
+    crawlerStatus.value = "✅ 已依照條件進行爬蟲";
   } catch (err) {
     console.error("❌ 呼叫爬蟲失敗", err);
     crawlerStatus.value = "❌ 啟動爬蟲失敗，請稍後再試";
@@ -212,6 +247,7 @@ const triggerCrawler = async () => {
 const clearForm = () => {
   city.value = "";
   district.value = "";
+  availableDistricts.value = [];
   minPrice.value = 0;
   maxPrice.value = 0;
   minSize.value = 0;
@@ -230,6 +266,7 @@ const deleteCondition = async (id) => {
 
 onMounted(() => {
   loadConditions();
+  updateDistricts();
 });
 </script>
 
