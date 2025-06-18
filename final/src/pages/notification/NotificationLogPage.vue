@@ -39,12 +39,12 @@
 <script setup>
 import { ref, onMounted } from "vue";
 import { db, auth } from "@/firebase";
-import { collection, query, where, orderBy, getDocs } from "firebase/firestore";
+import { collection, query, orderBy, getDocs } from "firebase/firestore";
+import { onAuthStateChanged } from "firebase/auth";
 
-// 通知資料
 const notifications = ref([]);
 
-// 日期格式化
+// 日期格式化函式
 const formatDate = (timestamp) => {
   if (!timestamp) return "";
   const date = timestamp.toDate();
@@ -57,13 +57,11 @@ const formatDate = (timestamp) => {
   });
 };
 
-const loadNotifications = async () => {
-  // 暫時忽略 userId 過濾條件
+const loadNotifications = async (userId) => {
   const q = query(
-    collection(db, "notifications"),
+    collection(db, "users", userId, "notifications"),
     orderBy("createdAt", "desc")
   );
-
   const querySnapshot = await getDocs(q);
   notifications.value = querySnapshot.docs.map((doc) => ({
     id: doc.id,
@@ -71,8 +69,15 @@ const loadNotifications = async () => {
   }));
 };
 
+// 監聽登入狀態後載入通知
 onMounted(() => {
-  loadNotifications();
+  onAuthStateChanged(auth, (user) => {
+    if (user) {
+      loadNotifications(user.uid);
+    } else {
+      console.warn("尚未登入，無法載入通知");
+    }
+  });
 });
 </script>
 

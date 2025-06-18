@@ -1,5 +1,3 @@
-# ✅ 把主流程封裝成 main()，供其他地方 import 使用
-
 import os, re, smtplib
 from email.mime.text import MIMEText
 from email.header import Header
@@ -98,11 +96,10 @@ def parse_items(soup):
             results.append({"title": title, "link": link, "updated": updated})
     return results
 
-# ✅ 寫入 Firebase 的通知資料
+# ✅ 寫入 Firebase 的通知資料（使用者子集合方式）
 def write_notifications(user_id, condition_id, listings):
     for l in listings:
-        db.collection("notifications").add({
-            "userId": user_id,
+        db.collection("users").document(user_id).collection("notifications").add({
             "conditionId": condition_id,
             "title": l["title"],
             "link": l["link"],
@@ -138,12 +135,11 @@ def send_email(to_email, count):
     except Exception as e:
         print(f"⚠️ 寄信失敗: {e}")
 
-# ✅ 刪除使用者原有的通知
+# ✅ 刪除使用者原有的通知（子集合版本）
 def delete_user_notifications(user_id):
     try:
-        notifications_ref = db.collection("notifications")
-        q = notifications_ref.where("userId", "==", user_id)
-        docs = q.stream()
+        notifications_ref = db.collection("users").document(user_id).collection("notifications")
+        docs = notifications_ref.stream()
         count = 0
         for doc in docs:
             doc.reference.delete()
@@ -152,6 +148,7 @@ def delete_user_notifications(user_id):
     except Exception as e:
         print(f"⚠️ 無法刪除通知紀錄：{e}")
 
+# ✅ 主流程
 def main():
     cond_docs = db.collection("conditions").stream()
     for doc in cond_docs:
@@ -169,9 +166,7 @@ def main():
         print(f"→ 符合條件房源數量：{len(listings)}")
 
         if listings:
-            # ✅ 先刪除原有通知
             delete_user_notifications(user_id)
-
             print(f"📥 寫入 {len(listings)} 條通知到 Firebase")
             write_notifications(user_id, doc.id, listings)
             email = get_user_email(user_id)
@@ -181,4 +176,3 @@ def main():
             else:
                 print(f"❌ 找不到使用者 {user_id} 的 email")
     print("🎉 爬蟲完成，已寫入 Firebase 並寄送通知")
-
